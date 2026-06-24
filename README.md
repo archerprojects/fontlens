@@ -6,11 +6,13 @@ FontLens lets you browse to any directory and instantly preview the fonts inside
 
 ---
 
+**Developer**
+
 ```
-Developer:  archerprojects
-Contact:    archer.projects@proton.me
-Maintainer: archerprojects <archer.projects@proton.me>
-GitHub:     https://github.com/archerprojects/fontlens
+Developed for Lean Linux by:
+archerprojects
+archer.projects@proton.me
+https://github.com/archerprojects/fontlens
 ```
 
 Developed for Lean Linux. Not exclusive to Lean Linux — runs on any standard Linux desktop.
