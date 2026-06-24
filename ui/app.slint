@@ -1,0 +1,897 @@
+// ui/app.slint
+// FontLens v1.0.0
+
+import { ScrollView, Slider } from "std-widgets.slint";
+
+export struct FontEntry {
+    filename: string,
+    family:   string,
+    style:    string,
+    path:     string,
+}
+
+export struct BrowserEntry {
+    name:       string,
+    path:       string,
+    font-count: int,
+}
+
+export component AppWindow inherits Window {
+    title: "FontLens";
+    preferred-height: 600px;
+    min-width: 900px;
+    min-height: 500px;
+    max-width: 100000px;
+    max-height: 100000px;
+    background: root.color-panel-bg;
+
+    // ── Theme palette ────────────────────────────────────────────────────────
+    in property <color> color-accent:       #4b8bd4;
+    in property <color> color-panel-bg:     #2e2e2e;
+    in property <color> color-hover-bg:     rgba(75, 139, 212, 0.4);
+    in property <color> color-chrome-bg:    #1a1a1a;
+    in property <color> color-view-bg:      #1e1e1e;
+    in property <color> color-border:       #444444;
+    in property <color> color-button-bg:    #2a2a2a;
+    in property <color> color-button-hover: #3a3a3a;
+    in property <color> color-text:         #dcdcdc;
+    in property <color> color-subtext:      #a0a0a0;
+
+    // ── Panel A state ────────────────────────────────────────────────────────
+    in property <[FontEntry]> fonts-a:          [];
+    in property <string>      status-a:         "No collection selected";
+    in property <string>      preview-path-a:   "";
+    in property <string>      preview-family-a: "";
+    in property <string>      preview-style-a:  "";
+    in property <string>      install-status-a: "";
+    in property <string>      current-dir-a:    "";
+
+    // ── Panel B state ────────────────────────────────────────────────────────
+    in property <[FontEntry]> fonts-b:          [];
+    in property <string>      status-b:         "No collection selected";
+    in property <string>      preview-path-b:   "";
+    in property <string>      preview-family-b: "";
+    in property <string>      preview-style-b:  "";
+    in property <string>      install-status-b: "";
+    in property <string>      current-dir-b:    "";
+
+    // ── Browser state ────────────────────────────────────────────────────────
+    in        property <[BrowserEntry]> browser-entries:    [];
+    in        property <string>         browser-path:       "";
+    in-out    property <string>         browser-target:     "a";
+    in-out    property <bool>           browser-fonts-only: false;
+    private   property <bool>           show-browser:       false;
+
+    // ── Per-panel controls ───────────────────────────────────────────────────
+    private property <length> size-a:       28px;
+    private property <color>  font-color-a: #111111;
+    private property <length> size-b:       28px;
+    private property <color>  font-color-b: #111111;
+
+    // ── Help + confirm state ─────────────────────────────────────────────────
+    private property <bool> show-help:      false;
+    private property <bool> show-confirm-a: false;
+    private property <bool> show-confirm-b: false;
+
+    // ── Callbacks ────────────────────────────────────────────────────────────
+    callback browser-open-at(string);
+    callback browser-up();
+    callback browser-scan(string);
+    callback select-font-a(string, string, string);
+    callback select-font-b(string, string, string);
+    callback install-font-a(string);
+    callback install-font-b(string);
+    callback delete-font-a(string);
+    callback delete-font-b(string);
+    callback open-in-filemanager(string);
+
+    // ── Root layout ──────────────────────────────────────────────────────────
+    HorizontalLayout {
+        padding: 0px;
+        spacing: 0px;
+
+        // ── PANEL A ──────────────────────────────────────────────────────────
+        Rectangle {
+            horizontal-stretch: 1;
+            max-width: 100000px;
+            background: root.color-panel-bg;
+
+            VerticalLayout {
+                padding: 0px;
+                spacing: 0px;
+
+                // Header bar
+                Rectangle {
+                    height: 44px;
+                    background: root.color-chrome-bg;
+
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        spacing: 6px;
+                        alignment: start;
+
+                        Rectangle {
+                            width: 160px;
+                            background: opena-ta.has-hover ? root.color-hover-bg : transparent;
+                            opena-ta := TouchArea {
+                                clicked => {
+                                    root.browser-target = "a";
+                                    root.show-browser = true;
+                                    root.browser-open-at("~");
+                                }
+                            }
+                            Text {
+                                text: "Open Collection A";
+                                color: root.color-accent;
+                                font-size: 13px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        Rectangle { width: 1px; background: root.color-border; }
+
+                        Rectangle {
+                            width: 110px;
+                            background: insta-ta.has-hover ? root.color-hover-bg : transparent;
+                            insta-ta := TouchArea {
+                                clicked => {
+                                    if (root.preview-path-a != "") {
+                                        root.install-font-a(root.preview-path-a);
+                                    }
+                                }
+                            }
+                            Text {
+                                text: "Install Font";
+                                color: root.preview-path-a != "" ? root.color-text : root.color-subtext;
+                                font-size: 13px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        Rectangle { width: 1px; background: root.color-border; }
+
+                        // Remove — active for your own collections; protected on system paths
+                        Rectangle {
+                            width: 100px;
+                            background: dela-ta.has-hover && root.preview-path-a != "" && root.current-dir-a != "system" ? root.color-hover-bg : transparent;
+                            dela-ta := TouchArea {
+                                clicked => {
+                                    if (root.preview-path-a != "" && root.current-dir-a != "system") {
+                                        root.show-confirm-a = true;
+                                    }
+                                }
+                            }
+                            Text {
+                                text: "Remove Font";
+                                color: root.preview-path-a != "" && root.current-dir-a != "system" ? #cc3333 : root.color-subtext;
+                                font-size: 13px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        Rectangle { width: 1px; background: root.color-border; }
+
+                        Rectangle {
+                            width: 50px;
+                            background: helpa-ta.has-hover ? root.color-hover-bg : transparent;
+                            helpa-ta := TouchArea { clicked => { root.show-help = true; } }
+                            Text {
+                                text: "Help";
+                                color: root.color-subtext;
+                                font-size: 12px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+
+                Rectangle { height: 1px; background: root.color-accent; opacity: 0.4; }
+
+                // Status
+                HorizontalLayout {
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    height: 20px;
+                    Text {
+                        text: root.status-a;
+                        color: root.color-subtext;
+                        font-size: 11px;
+                        overflow: elide;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Font list
+                Rectangle {
+                    vertical-stretch: 3;
+                    background: root.color-view-bg;
+
+                    ScrollView {
+                        VerticalLayout {
+                            padding: 4px;
+                            spacing: 1px;
+                            for entry in root.fonts-a: Rectangle {
+                                height: 40px;
+                                border-radius: 3px;
+                                background: rowa-ta.has-hover ? root.color-hover-bg : transparent;
+                                rowa-ta := TouchArea {
+                                    clicked => { root.select-font-a(entry.path, entry.family, entry.style); }
+                                }
+                                HorizontalLayout {
+                                    padding: 6px;
+                                    VerticalLayout {
+                                        spacing: 1px;
+                                        horizontal-stretch: 1;
+                                        Text { text: entry.family != "" ? entry.family : entry.filename; color: root.color-text; font-size: 13px; overflow: elide; }
+                                        Text { text: entry.style; color: root.color-subtext; font-size: 10px; overflow: elide; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Controls
+                Rectangle {
+                    background: root.color-panel-bg;
+                    height: 64px;
+
+                    VerticalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        padding-top: 4px;
+                        padding-bottom: 10px;
+                        spacing: 4px;
+
+                        HorizontalLayout {
+                            spacing: 6px;
+                            height: 20px;
+                            Text { text: "Size:"; color: root.color-subtext; font-size: 11px; vertical-alignment: center; width: 28px; }
+                            Slider {
+                                minimum: 8; maximum: 72;
+                                value: root.size-a / 1px;
+                                horizontal-stretch: 1;
+                                changed(v) => { root.size-a = v * 1px; }
+                            }
+                            Text { text: round(root.size-a / 1px) + "px"; color: root.color-subtext; font-size: 11px; vertical-alignment: center; width: 36px; }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 5px;
+                            height: 18px;
+                            Text { text: "Color:"; color: root.color-subtext; font-size: 11px; vertical-alignment: center; width: 34px; }
+                            for swatch-color in [#111111, #ffffff, #4b8bd4, #cc3333, #2a7a2a, #cc8800, #7b3fa0, #888888] : Rectangle {
+                                width: 18px; height: 18px; border-radius: 3px;
+                                background: swatch-color;
+                                border-width: swatch-color == root.font-color-a ? 2px : 1px;
+                                border-color: swatch-color == root.font-color-a ? root.color-accent : #666666;
+                                TouchArea { clicked => { root.font-color-a = swatch-color; } }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle { height: 1px; background: root.color-border; }
+
+                // Preview — paper-white specimen sheet, fixed in both themes
+                Rectangle {
+                    vertical-stretch: 7;
+                    background: #ffffff;
+                    clip: true;
+
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 4px;
+
+                        HorizontalLayout {
+                            height: 20px;
+                            Text {
+                                text: root.preview-family-a != "" ? root.preview-family-a + "  " + root.preview-style-a : "Select a font to preview";
+                                color: root.color-accent;
+                                font-size: 13px;
+                                font-weight: 700;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                            }
+                        }
+
+                        if root.install-status-a != "" : Text {
+                            text: root.install-status-a;
+                            color: root.color-accent;
+                            font-size: 10px;
+                            height: 14px;
+                        }
+
+                        Rectangle { height: 1px; background: #dddddd; }
+
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 2px;
+                                padding: 0px;
+                                Text { text: "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z"; color: root.font-color-a; font-size: root.size-a * 0.55; font-family: root.preview-family-a; wrap: word-wrap; }
+                                Text { text: "a b c d e f g h i j k l m n o p q r s t u v w x y z"; color: root.font-color-a; font-size: root.size-a * 0.55; font-family: root.preview-family-a; wrap: word-wrap; }
+                                Text { text: "0 1 2 3 4 5 6 7 8 9  ! @ # $ % & * ( ) , . : ;";      color: root.font-color-a; font-size: root.size-a * 0.5;  font-family: root.preview-family-a; wrap: word-wrap; }
+                                Text { text: "The quick brown fox jumps over the lazy dog";           color: root.font-color-a; font-size: root.size-a * 0.65; font-family: root.preview-family-a; wrap: word-wrap; }
+                                Text { text: "The quick brown fox jumps over the lazy dog";           color: root.font-color-a; font-size: root.size-a;        font-family: root.preview-family-a; wrap: word-wrap; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Divider ───────────────────────────────────────────────────────────
+        Rectangle { width: 1px; background: root.color-accent; opacity: 0.5; }
+
+        // ── PANEL B ──────────────────────────────────────────────────────────
+        Rectangle {
+            horizontal-stretch: 1;
+            max-width: 100000px;
+            background: root.color-panel-bg;
+
+            VerticalLayout {
+                padding: 0px;
+                spacing: 0px;
+
+                // Header bar
+                Rectangle {
+                    height: 44px;
+                    background: root.color-chrome-bg;
+
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        spacing: 6px;
+                        alignment: start;
+
+                        Rectangle {
+                            width: 160px;
+                            background: openb-ta.has-hover ? root.color-hover-bg : transparent;
+                            openb-ta := TouchArea {
+                                clicked => {
+                                    root.browser-target = "b";
+                                    root.show-browser = true;
+                                    root.browser-open-at("~");
+                                }
+                            }
+                            Text {
+                                text: "Open Collection B";
+                                color: root.color-accent;
+                                font-size: 13px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        Rectangle { width: 1px; background: root.color-border; }
+
+                        Rectangle {
+                            width: 110px;
+                            background: instb-ta.has-hover ? root.color-hover-bg : transparent;
+                            instb-ta := TouchArea {
+                                clicked => {
+                                    if (root.preview-path-b != "") {
+                                        root.install-font-b(root.preview-path-b);
+                                    }
+                                }
+                            }
+                            Text {
+                                text: "Install Font";
+                                color: root.preview-path-b != "" ? root.color-text : root.color-subtext;
+                                font-size: 13px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        Rectangle { width: 1px; background: root.color-border; }
+
+                        Rectangle {
+                            width: 100px;
+                            background: delb-ta.has-hover && root.preview-path-b != "" && root.current-dir-b != "system" ? root.color-hover-bg : transparent;
+                            delb-ta := TouchArea {
+                                clicked => {
+                                    if (root.preview-path-b != "" && root.current-dir-b != "system") {
+                                        root.show-confirm-b = true;
+                                    }
+                                }
+                            }
+                            Text {
+                                text: "Remove Font";
+                                color: root.preview-path-b != "" && root.current-dir-b != "system" ? #cc3333 : root.color-subtext;
+                                font-size: 13px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+
+                Rectangle { height: 1px; background: root.color-accent; opacity: 0.4; }
+
+                // Status
+                HorizontalLayout {
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    height: 20px;
+                    Text {
+                        text: root.status-b;
+                        color: root.color-subtext;
+                        font-size: 11px;
+                        overflow: elide;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Font list
+                Rectangle {
+                    vertical-stretch: 3;
+                    background: root.color-view-bg;
+
+                    ScrollView {
+                        VerticalLayout {
+                            padding: 4px;
+                            spacing: 1px;
+                            for entry in root.fonts-b: Rectangle {
+                                height: 40px;
+                                border-radius: 3px;
+                                background: rowb-ta.has-hover ? root.color-hover-bg : transparent;
+                                rowb-ta := TouchArea {
+                                    clicked => { root.select-font-b(entry.path, entry.family, entry.style); }
+                                }
+                                HorizontalLayout {
+                                    padding: 6px;
+                                    VerticalLayout {
+                                        spacing: 1px;
+                                        horizontal-stretch: 1;
+                                        Text { text: entry.family != "" ? entry.family : entry.filename; color: root.color-text; font-size: 13px; overflow: elide; }
+                                        Text { text: entry.style; color: root.color-subtext; font-size: 10px; overflow: elide; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Controls
+                Rectangle {
+                    background: root.color-panel-bg;
+                    height: 64px;
+
+                    VerticalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        padding-top: 4px;
+                        padding-bottom: 10px;
+                        spacing: 4px;
+
+                        HorizontalLayout {
+                            spacing: 6px;
+                            height: 20px;
+                            Text { text: "Size:"; color: root.color-subtext; font-size: 11px; vertical-alignment: center; width: 28px; }
+                            Slider {
+                                minimum: 8; maximum: 72;
+                                value: root.size-b / 1px;
+                                horizontal-stretch: 1;
+                                changed(v) => { root.size-b = v * 1px; }
+                            }
+                            Text { text: round(root.size-b / 1px) + "px"; color: root.color-subtext; font-size: 11px; vertical-alignment: center; width: 36px; }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 5px;
+                            height: 18px;
+                            Text { text: "Color:"; color: root.color-subtext; font-size: 11px; vertical-alignment: center; width: 34px; }
+                            for swatch-color in [#111111, #ffffff, #4b8bd4, #cc3333, #2a7a2a, #cc8800, #7b3fa0, #888888] : Rectangle {
+                                width: 18px; height: 18px; border-radius: 3px;
+                                background: swatch-color;
+                                border-width: swatch-color == root.font-color-b ? 2px : 1px;
+                                border-color: swatch-color == root.font-color-b ? root.color-accent : #666666;
+                                TouchArea { clicked => { root.font-color-b = swatch-color; } }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle { height: 1px; background: root.color-border; }
+
+                // Preview
+                Rectangle {
+                    vertical-stretch: 7;
+                    background: #ffffff;
+                    clip: true;
+
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 4px;
+
+                        HorizontalLayout {
+                            height: 20px;
+                            Text {
+                                text: root.preview-family-b != "" ? root.preview-family-b + "  " + root.preview-style-b : "Select a font to preview";
+                                color: root.color-accent;
+                                font-size: 13px;
+                                font-weight: 700;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                            }
+                        }
+
+                        if root.install-status-b != "" : Text {
+                            text: root.install-status-b;
+                            color: root.color-accent;
+                            font-size: 10px;
+                            height: 14px;
+                        }
+
+                        Rectangle { height: 1px; background: #dddddd; }
+
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 2px;
+                                padding: 0px;
+                                Text { text: "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z"; color: root.font-color-b; font-size: root.size-b * 0.55; font-family: root.preview-family-b; wrap: word-wrap; }
+                                Text { text: "a b c d e f g h i j k l m n o p q r s t u v w x y z"; color: root.font-color-b; font-size: root.size-b * 0.55; font-family: root.preview-family-b; wrap: word-wrap; }
+                                Text { text: "0 1 2 3 4 5 6 7 8 9  ! @ # $ % & * ( ) , . : ;";      color: root.font-color-b; font-size: root.size-b * 0.5;  font-family: root.preview-family-b; wrap: word-wrap; }
+                                Text { text: "The quick brown fox jumps over the lazy dog";           color: root.font-color-b; font-size: root.size-b * 0.65; font-family: root.preview-family-b; wrap: word-wrap; }
+                                Text { text: "The quick brown fox jumps over the lazy dog";           color: root.font-color-b; font-size: root.size-b;        font-family: root.preview-family-b; wrap: word-wrap; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── BROWSER OVERLAY ───────────────────────────────────────────────────
+        if root.show-browser : Rectangle {
+            width: 0px;
+            Rectangle {
+                x: -root.width;
+                width: root.width;
+                height: root.height;
+                background: rgba(0, 0, 0, 0.75);
+                bdim-ta := TouchArea { clicked => { root.show-browser = false; } }
+
+                Rectangle {
+                    width: 580px;
+                    height: 540px;
+                    x: (root.width  - self.width)  / 2;
+                    y: (root.height - self.height) / 2;
+                    background: root.color-view-bg;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: root.color-accent;
+                    bpanel-ta := TouchArea { }
+
+                    VerticalLayout {
+                        padding: 16px;
+                        spacing: 10px;
+
+                        Text {
+                            text: root.browser-target == "a" ? "Scan into Panel A" : "Scan into Panel B";
+                            color: root.color-accent;
+                            font-size: 15px;
+                            font-weight: 700;
+                        }
+
+                        // Toolbar
+                        HorizontalLayout {
+                            spacing: 6px;
+                            height: 26px;
+                            Rectangle {
+                                width: 46px; border-radius: 4px;
+                                background: bup-ta.has-hover ? root.color-button-hover : root.color-button-bg;
+                                bup-ta := TouchArea { clicked => { root.browser-up(); } }
+                                Text { text: "Up"; color: root.color-text; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                            Rectangle {
+                                width: 60px; border-radius: 4px;
+                                background: bhome-ta.has-hover ? root.color-button-hover : root.color-button-bg;
+                                bhome-ta := TouchArea { clicked => { root.browser-open-at("~"); } }
+                                Text { text: "Home"; color: root.color-text; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                            Rectangle {
+                                width: 80px; border-radius: 4px;
+                                background: bfonts-ta.has-hover ? root.color-button-hover : root.color-button-bg;
+                                bfonts-ta := TouchArea { clicked => { root.browser-open-at("~/.fonts"); } }
+                                Text { text: "~/.fonts"; color: root.color-text; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                        }
+
+                        // Current path
+                        Text {
+                            text: root.browser-path;
+                            color: root.color-subtext;
+                            font-size: 11px;
+                            overflow: elide;
+                        }
+
+                        // Filter toggle
+                        Rectangle {
+                            height: 20px;
+                            bfilt-ta := TouchArea {
+                                clicked => {
+                                    root.browser-fonts-only = !root.browser-fonts-only;
+                                    root.browser-open-at(root.browser-path);
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                alignment: start;
+                                Rectangle {
+                                    width: 14px; height: 14px; border-radius: 3px;
+                                    border-width: 1px;
+                                    border-color: root.color-border;
+                                    background: root.browser-fonts-only ? root.color-accent : transparent;
+                                    y: 2px;
+                                }
+                                Text { text: "Folders with fonts only"; color: root.color-subtext; font-size: 11px; vertical-alignment: center; }
+                            }
+                        }
+
+                        Rectangle { height: 1px; background: root.color-border; }
+
+                        // Directory list
+                        Rectangle {
+                            vertical-stretch: 1;
+                            background: root.color-panel-bg;
+                            border-radius: 4px;
+                            clip: true;
+
+                            ScrollView {
+                                VerticalLayout {
+                                    padding: 4px;
+                                    spacing: 1px;
+                                    for d in root.browser-entries : Rectangle {
+                                        height: 30px;
+                                        border-radius: 3px;
+                                        background: dirrow-ta.has-hover ? root.color-hover-bg : transparent;
+                                        dirrow-ta := TouchArea { clicked => { root.browser-open-at(d.path); } }
+                                        HorizontalLayout {
+                                            padding-left: 8px;
+                                            padding-right: 8px;
+                                            spacing: 8px;
+                                            Text {
+                                                text: d.name;
+                                                color: root.color-text;
+                                                font-size: 12px;
+                                                horizontal-stretch: 1;
+                                                overflow: elide;
+                                                vertical-alignment: center;
+                                            }
+                                            if d.font-count > 0 : Text {
+                                                text: d.font-count + (d.font-count == 1 ? " font" : " fonts");
+                                                color: root.color-accent;
+                                                font-size: 11px;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Footer
+                        HorizontalLayout {
+                            spacing: 12px;
+                            alignment: end;
+                            height: 32px;
+                            Rectangle {
+                                width: 90px; border-radius: 4px;
+                                background: bclose-ta.has-hover ? root.color-button-hover : root.color-button-bg;
+                                bclose-ta := TouchArea { clicked => { root.show-browser = false; } }
+                                Text { text: "Close"; color: root.color-text; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                            Rectangle {
+                                width: 150px; border-radius: 4px;
+                                background: bscan-ta.has-hover ? #3f78b8 : root.color-accent;
+                                bscan-ta := TouchArea {
+                                    clicked => {
+                                        root.browser-scan(root.browser-path);
+                                        root.show-browser = false;
+                                    }
+                                }
+                                Text { text: "Scan this folder"; color: #ffffff; font-size: 12px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── HELP OVERLAY ──────────────────────────────────────────────────────
+        if root.show-help : Rectangle {
+            width: 0px;
+            Rectangle {
+                x: -root.width;
+                width: root.width;
+                height: root.height;
+                background: rgba(0, 0, 0, 0.75);
+                helpbg-ta := TouchArea { clicked => { root.show-help = false; } }
+
+                Rectangle {
+                    width: 560px;
+                    height: 540px;
+                    x: (root.width  - self.width)  / 2;
+                    y: (root.height - self.height) / 2;
+                    background: root.color-view-bg;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: root.color-accent;
+
+                    VerticalLayout {
+                        padding: 24px;
+                        spacing: 8px;
+
+                        Text { text: "FontLens v1.0.0"; color: root.color-accent; font-size: 18px; font-weight: 700; }
+                        Text { text: "Lightweight font browser and comparison tool."; color: root.color-text; font-size: 13px; wrap: word-wrap; }
+
+                        Rectangle { height: 1px; background: root.color-border; }
+
+                        Text {
+                            text: "Open Collection A / B — browse to a folder and scan every font beneath it\nInstall Font — copy the selected font to ~/.fonts\nRemove Font — permanently delete the selected font (your own collections; system fonts are protected)\nClick any font in the list to preview it\nUse the size slider to scale the specimen\nUse the color swatches to change specimen text color";
+                            color: root.color-subtext; font-size: 12px; wrap: word-wrap;
+                        }
+
+                        Rectangle { height: 1px; background: root.color-border; }
+
+                        Text { text: "System font paths — click to open in file manager:"; color: root.color-subtext; font-size: 11px; }
+
+                        VerticalLayout {
+                            padding-left: 0px;
+                            spacing: 6px;
+                            Rectangle {
+                                height: 18px;
+                                hp1-ta := TouchArea { clicked => { root.open-in-filemanager("~/.fonts"); } }
+                                Text { text: "~/.fonts"; color: hp1-ta.has-hover ? #6ba3e0 : root.color-accent; font-size: 11px; vertical-alignment: center; }
+                            }
+                            Rectangle {
+                                height: 18px;
+                                hp2-ta := TouchArea { clicked => { root.open-in-filemanager("~/.local/share/fonts"); } }
+                                Text { text: "~/.local/share/fonts"; color: hp2-ta.has-hover ? #6ba3e0 : root.color-accent; font-size: 11px; vertical-alignment: center; }
+                            }
+                            Rectangle {
+                                height: 18px;
+                                hp3-ta := TouchArea { clicked => { root.open-in-filemanager("/usr/share/fonts"); } }
+                                Text { text: "/usr/share/fonts"; color: hp3-ta.has-hover ? #6ba3e0 : root.color-accent; font-size: 11px; vertical-alignment: center; }
+                            }
+                            Rectangle {
+                                height: 18px;
+                                hp4-ta := TouchArea { clicked => { root.open-in-filemanager("/usr/local/share/fonts"); } }
+                                Text { text: "/usr/local/share/fonts"; color: hp4-ta.has-hover ? #6ba3e0 : root.color-accent; font-size: 11px; vertical-alignment: center; }
+                            }
+                        }
+
+                        Text {
+                            text: "FontLens removes fonts from ~/.fonts, ~/.local/share/fonts, and external collections you own. System font directories are protected — open them in your file manager with root access to modify them.";
+                            color: root.color-subtext; font-size: 11px; wrap: word-wrap;
+                        }
+
+                        Rectangle { height: 1px; background: root.color-border; }
+
+                        Text { text: "Developed by archerprojects — archer.projects@proton.me"; color: root.color-subtext; font-size: 11px; }
+                        Text { text: "https://github.com/archerprojects/fontlens"; color: root.color-subtext; font-size: 11px; }
+                        Text { text: "Click anywhere to close"; color: root.color-accent; font-size: 11px; }
+                    }
+                }
+            }
+        }
+
+        // ── Confirm delete A ──────────────────────────────────────────────────
+        if root.show-confirm-a : Rectangle {
+            width: 0px;
+            Rectangle {
+                x: -root.width;
+                width: root.width;
+                height: root.height;
+                background: rgba(0, 0, 0, 0.75);
+
+                Rectangle {
+                    width: 420px;
+                    height: 190px;
+                    x: (root.width  - self.width)  / 2;
+                    y: (root.height - self.height) / 2;
+                    background: root.color-view-bg;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #cc3333;
+
+                    VerticalLayout {
+                        padding: 24px;
+                        spacing: 10px;
+                        Text { text: "Permanently remove this font?"; color: #cc3333; font-size: 14px; font-weight: 700; wrap: word-wrap; }
+                        Text { text: root.preview-family-a + " — " + root.preview-style-a; color: root.color-text; font-size: 12px; }
+                        Text { text: "from " + root.status-a; color: root.color-subtext; font-size: 11px; overflow: elide; }
+                        HorizontalLayout {
+                            spacing: 12px;
+                            alignment: end;
+                            Rectangle {
+                                width: 80px; height: 30px;
+                                border-radius: 4px;
+                                background: cancela-ta.has-hover ? root.color-button-hover : root.color-button-bg;
+                                cancela-ta := TouchArea { clicked => { root.show-confirm-a = false; } }
+                                Text { text: "Cancel"; color: root.color-text; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                            Rectangle {
+                                width: 80px; height: 30px;
+                                border-radius: 4px;
+                                background: confirma-ta.has-hover ? #aa2222 : #cc3333;
+                                confirma-ta := TouchArea {
+                                    clicked => {
+                                        root.delete-font-a(root.preview-path-a);
+                                        root.show-confirm-a = false;
+                                    }
+                                }
+                                Text { text: "Remove"; color: #ffffff; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Confirm delete B ──────────────────────────────────────────────────
+        if root.show-confirm-b : Rectangle {
+            width: 0px;
+            Rectangle {
+                x: -root.width;
+                width: root.width;
+                height: root.height;
+                background: rgba(0, 0, 0, 0.75);
+
+                Rectangle {
+                    width: 420px;
+                    height: 190px;
+                    x: (root.width  - self.width)  / 2;
+                    y: (root.height - self.height) / 2;
+                    background: root.color-view-bg;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: #cc3333;
+
+                    VerticalLayout {
+                        padding: 24px;
+                        spacing: 10px;
+                        Text { text: "Permanently remove this font?"; color: #cc3333; font-size: 14px; font-weight: 700; wrap: word-wrap; }
+                        Text { text: root.preview-family-b + " — " + root.preview-style-b; color: root.color-text; font-size: 12px; }
+                        Text { text: "from " + root.status-b; color: root.color-subtext; font-size: 11px; overflow: elide; }
+                        HorizontalLayout {
+                            spacing: 12px;
+                            alignment: end;
+                            Rectangle {
+                                width: 80px; height: 30px;
+                                border-radius: 4px;
+                                background: cancelb-ta.has-hover ? root.color-button-hover : root.color-button-bg;
+                                cancelb-ta := TouchArea { clicked => { root.show-confirm-b = false; } }
+                                Text { text: "Cancel"; color: root.color-text; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                            Rectangle {
+                                width: 80px; height: 30px;
+                                border-radius: 4px;
+                                background: confirmb-ta.has-hover ? #aa2222 : #cc3333;
+                                confirmb-ta := TouchArea {
+                                    clicked => {
+                                        root.delete-font-b(root.preview-path-b);
+                                        root.show-confirm-b = false;
+                                    }
+                                }
+                                Text { text: "Remove"; color: #ffffff; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

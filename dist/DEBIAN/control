@@ -1,0 +1,9 @@
+Package: fontlens
+Version: 1.0.0
+Architecture: amd64
+Maintainer: archerprojects <archer.projects@proton.me>
+Description: Font browser and comparison tool
+ Lightweight font browser. Browse and scan any directory, compare fonts
+ side by side, install to ~/.fonts with one click. No database, no indexing,
+ no activation.
+Depends: fontconfig, xdg-utils, libglib2.0-bin

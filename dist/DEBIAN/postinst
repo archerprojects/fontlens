@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+
+echo "  [FontLens] postinst running..."
+
+gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
+gtk-update-icon-cache -f -t /usr/share/icons/lean-icons 2>/dev/null || true
+update-desktop-database 2>/dev/null || true
+
+echo "  [FontLens] install complete."

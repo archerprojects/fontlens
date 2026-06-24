@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=FontLens
+GenericName=Font Browser
+Comment=Browse, compare, and install fonts
+Exec=fontlens
+Icon=fontlens
+Terminal=false
+Type=Application
+Categories=X-LEAN-Tools;Utility;
+Keywords=font;fonts;typeface;ttf;otf;typography;preview;
+StartupNotify=false
